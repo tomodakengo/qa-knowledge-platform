@@ -1,0 +1,58 @@
+name: 🛠️ Env / Config issue
+description: CI環境・Docker・playwright.config 起因の失敗起票テンプレ
+title: "[env] "
+labels:
+  - status-triage
+  - P-env-flake
+  - scope-ci
+body:
+  - type: markdown
+    attributes:
+      value: |
+        runner CPU逼迫、Docker内挙動差、playwright.config の timeout、`webServer` の起動失敗など、
+        テストコードではなく **環境/設定** が原因の失敗用テンプレートです。
+
+  - type: dropdown
+    id: env-where
+    attributes:
+      label: どの環境で起きるか
+      multiple: true
+      options:
+        - 'GitHub Actions runner'
+        - 'self-hosted runner'
+        - 'Docker (devcontainer)'
+        - 'ローカル mac'
+        - 'ローカル windows'
+        - 'ローカル linux'
+    validations:
+      required: true
+
+  - type: textarea
+    id: symptom
+    attributes:
+      label: 症状
+      description: 何がどう失敗するか
+    validations:
+      required: true
+
+  - type: textarea
+    id: config-snippet
+    attributes:
+      label: 関連する設定ファイル抜粋
+      description: 'playwright.config.ts, docker-compose.yml, GitHub workflow YAML など'
+      render: yaml
+
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: 仮説
+      description: 何が原因と疑っているか
+
+  - type: checkboxes
+    id: ruled-out
+    attributes:
+      label: ruled out できたこと
+      options:
+        - label: 'テストコード自体は他環境で正常に動作する'
+        - label: 'lock ファイルやキャッシュは最新'
+        - label: '同じcommit shaで再実行しても再現する'

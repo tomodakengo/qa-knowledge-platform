@@ -1,0 +1,83 @@
+name: 🌀 Flaky pattern report
+description: テストが間欠的に落ちるとき、症状を構造化して起票するテンプレート
+title: "[flaky] "
+labels:
+  - status-triage
+  - confidence-low
+body:
+  - type: markdown
+    attributes:
+      value: |
+        flaky な失敗を見つけたら、まずこのテンプレートで起票してください。
+        triage-issue ワークフロー（または triage 担当）が Pattern (P-*) と scope を付与します。
+        同症状が再発したら、このIssueにコメントを足してください。confidence-high への昇格判断材料になります。
+
+  - type: input
+    id: failing-test
+    attributes:
+      label: 失敗したテスト名
+      description: 'Playwright JSON report から `tests/<file>.spec.ts > <describe> > <test>` 形式で'
+      placeholder: 'tests/checkout.spec.ts > Checkout > should complete order'
+    validations:
+      required: true
+
+  - type: textarea
+    id: error-snippet
+    attributes:
+      label: エラーログ抜粋（10〜30行）
+      description: スタックトレース or Playwright のエラー出力を抜粋。長すぎる場合は collapsible 可。
+      render: text
+    validations:
+      required: true
+
+  - type: dropdown
+    id: reproducibility
+    attributes:
+      label: 再現性
+      options:
+        - '常に失敗する (100%)'
+        - '頻繁に失敗する (>50%)'
+        - 'ときどき失敗する (10-50%)'
+        - 'まれに失敗する (<10%)'
+        - '一度きり、再現していない'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: where
+    attributes:
+      label: どこで再現したか
+      multiple: true
+      options:
+        - 'CI (nightly)'
+        - 'CI (PR)'
+        - 'ローカル (Headed)'
+        - 'ローカル (Headless)'
+        - 'Docker内'
+    validations:
+      required: true
+
+  - type: textarea
+    id: suspected-pattern
+    attributes:
+      label: 疑っているパターン
+      description: 'Pattern catalogue にあるパターン (P-locator-timeout 等) で当たりがついていれば書く。なければ "わからない"'
+      placeholder: 'P-overlay-blocks-click かもしれない。saveボタンクリック時にローディングで覆われている疑い'
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: 一時しのぎ（あれば）
+      description: 'すでに `.skip` した、リトライした、特定 timeout を伸ばした 等の対応'
+
+  - type: checkboxes
+    id: hard-bans-reminder
+    attributes:
+      label: 自己チェック（Hard bans を踏みかけてないか）
+      options:
+        - label: '`page.waitForTimeout(N)` を入れて誤魔化していない'
+          required: true
+        - label: '`.nth(N)` で strict mode を回避していない'
+          required: true
+        - label: '`getByRole/getByLabel/getByTestId` を CSS/XPath に置き換えていない'
+          required: true

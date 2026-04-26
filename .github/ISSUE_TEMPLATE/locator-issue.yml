@@ -1,0 +1,59 @@
+name: 🎯 Locator issue
+description: locator がうまく要素を捕まえない / strict mode で失敗する起票テンプレ
+title: "[locator] "
+labels:
+  - status-triage
+  - P-strict-mode-violation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        locator 起因の失敗専用テンプレートです。
+        flaky ではなく **常に失敗する** locator 問題はこちら。
+        間欠失敗の場合は `flaky-pattern.yml` を使ってください。
+
+  - type: input
+    id: locator-string
+    attributes:
+      label: 問題のlocator
+      description: 'コードそのままコピペ'
+      placeholder: "page.getByRole('button', { name: 'Save' })"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: failure-mode
+    attributes:
+      label: 失敗モード
+      options:
+        - 'strict mode violation (要素が複数ヒット)'
+        - '要素が見つからない (timeout)'
+        - 'role が間違っている (DOM 改修)'
+        - 'visible じゃない（DOM はあるが見えない）'
+        - 'actionable じゃない（disabled / covered）'
+    validations:
+      required: true
+
+  - type: textarea
+    id: aria-snapshot
+    attributes:
+      label: ARIA snapshot（あれば）
+      description: '`await page.locator("body").ariaSnapshot()` の出力 or HTML 抜粋'
+      render: yaml
+
+  - type: textarea
+    id: investigation
+    attributes:
+      label: 調査メモ
+      description: '何を試したか、どこまでわかったか'
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 影響範囲
+      options:
+        - '単一テストのみ'
+        - 'Page Object / Component を共有する複数テスト'
+        - 'スイート全体'
+    validations:
+      required: true

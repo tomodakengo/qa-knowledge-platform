@@ -1,0 +1,65 @@
+name: 🐛 Product bug suspect
+description: 'テストの問題ではなくプロダクト側のバグの可能性が高い場合の起票テンプレ（QA → 開発エスカレ）'
+title: "[product-bug?] "
+labels:
+  - status-triage
+  - P-product-bug-suspect
+  - severity-major
+body:
+  - type: markdown
+    attributes:
+      value: |
+        E2E テストが失敗し、調査の結果 **プロダクト側のバグの可能性が高い** と判断したときに使うテンプレートです。
+        Pattern catalogue には載せず、開発側にエスカレーションします。
+        AI fix エージェントは `P-product-bug-suspect` を見つけたら **fix を提案せず** 人間レビューに委ねます。
+
+  - type: input
+    id: feature-area
+    attributes:
+      label: 機能エリア
+      placeholder: 'チェックアウト / ログイン / 設定 / etc.'
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-vs-actual
+    attributes:
+      label: 期待と実際
+      description: |
+        ## 期待
+        〜
+        ## 実際
+        〜
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: 再現手順
+      description: '手動で踏める手順を書く（テストではなく人間目線で）'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: 影響度
+      options:
+        - 'severity-blocker (リリースブロック級)'
+        - 'severity-major (主要機能が機能しない)'
+        - 'severity-minor (UIずれ / 影響軽微)'
+    validations:
+      required: true
+
+  - type: input
+    id: linked-test
+    attributes:
+      label: 検出した E2E テスト
+      placeholder: 'tests/checkout.spec.ts > Checkout > should complete order'
+
+  - type: textarea
+    id: dev-notes
+    attributes:
+      label: 開発側への申し送り
+      description: 'リプロ環境、ログ場所、関連 commit など'

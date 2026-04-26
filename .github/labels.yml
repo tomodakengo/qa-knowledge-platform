@@ -1,0 +1,107 @@
+# QAナレッジ蓄積プラットフォーム ラベル定義
+#
+# このファイルが本リポジトリのラベルの真実のソースです。
+# 編集後、`gh workflow run sync-labels.yml` を実行するか、main へ push すると
+# .github/workflows/sync-labels.yml が GitHub 上のラベルへ反映します。
+#
+# 設計指針: docs/label-taxonomy.md を参照
+
+# ============================================
+# Pattern (P-*) — 失敗パターンの分類
+# ============================================
+# 上限の目安: 20種。それ以上は再分類を検討する。
+- name: P-locator-timeout
+  color: 'd73a4a'
+  description: 'locator が指定時間内に actionable にならない（covered/disabled/animation 中）'
+
+- name: P-strict-mode-violation
+  color: 'd73a4a'
+  description: 'locator が複数要素にマッチして strict mode で失敗する'
+
+- name: P-network-race
+  color: 'd73a4a'
+  description: 'API レスポンスの待機不足や順序前後で flaky'
+
+- name: P-overlay-blocks-click
+  color: 'd73a4a'
+  description: 'モーダル/オーバーレイ/ローディングで click が阻害される'
+
+- name: P-state-leak
+  color: 'd73a4a'
+  description: 'テスト間の状態リーク（DBデータ、storageState、cookie）'
+
+- name: P-data-mismatch
+  color: 'd73a4a'
+  description: 'テストデータと環境のずれ（フィクスチャ古い、シード抜け）'
+
+- name: P-env-flake
+  color: 'd73a4a'
+  description: 'CI環境固有の不安定（CPU逼迫、リトライ無効、並列度過多）'
+
+- name: P-product-bug-suspect
+  color: 'b60205'
+  description: '失敗パターンに当てはまらず、プロダクトバグの可能性'
+
+# ============================================
+# scope-* — 影響範囲
+# ============================================
+- name: scope-single-test
+  color: 'fbca04'
+  description: '単一テストファイル内に閉じる修正で済む'
+
+- name: scope-fixture
+  color: 'fbca04'
+  description: 'fixture / Page Object など共通基盤の修正が必要'
+
+- name: scope-suite
+  color: 'fbca04'
+  description: 'スイート全体に影響する設計変更'
+
+- name: scope-ci
+  color: 'fbca04'
+  description: 'CI 設定 / runner / workflow の変更が必要'
+
+# ============================================
+# severity-* — 緊急度
+# ============================================
+- name: severity-blocker
+  color: 'b60205'
+  description: '本番リリース判断に直結（main ブロック）'
+
+- name: severity-major
+  color: 'd93f0b'
+  description: '日次パイプラインを止めうる'
+
+- name: severity-minor
+  color: 'fbca04'
+  description: '当面ワークアラウンドで運用可能'
+
+# ============================================
+# status-* — issue のライフサイクル
+# ============================================
+- name: status-triage
+  color: 'c5def5'
+  description: '起票直後、パターン分類待ち'
+
+- name: status-confirmed
+  color: '0e8a16'
+  description: 'パターン特定済み、再現性も確認済み'
+
+- name: status-promoted
+  color: '5319e7'
+  description: 'instructions/ に昇格済み（クローズ済みでも検索される）'
+
+- name: status-rejected
+  color: 'cccccc'
+  description: 'プロダクトバグ / 重複 / 再現せず などで catalogue 入りせず'
+
+# ============================================
+# confidence-* — 昇格判定用
+# ============================================
+- name: confidence-high
+  color: '0e8a16'
+  description: '同症状3件以上 or 1週間以内に再現あり = 昇格対象'
+
+- name: confidence-low
+  color: 'c5def5'
+  description: '単発 or 再現未確認 = 様子見'

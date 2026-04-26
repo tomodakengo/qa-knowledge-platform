@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📚 ドキュメント
+    url: https://github.com/tomodakengo/qa-knowledge-platform/tree/main/docs
+    about: 設計思想 / ラベル設計 / 移植ガイドはここから
+  - name: 💬 Discussions
+    url: https://github.com/tomodakengo/qa-knowledge-platform/discussions
+    about: 「これってバグ？それともパターン化すべき？」のような議論はこちらへ
