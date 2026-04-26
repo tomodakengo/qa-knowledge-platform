@@ -132,3 +132,44 @@ API 呼び出しが返ってくる前に assert が走っている。
 5. 人間レビュー後にマージ → AI が次回失敗時から参照する
 
 詳しくは `docs/promotion-workflow.md`。
+
+<!-- Auto-promoted by GitHub Models on 2026-04-26; reviewer must dedupe -->
+
+### P-network-race — カートの商品合計が正しく反映されない
+
+**Symptom**: 
+```
+Error: expect(locator).toHaveText('¥3,200')
+Expected string: "¥3,200"
+Received string: "¥0"
+  Locator: getByTestId('cart-total')
+```
+
+**Diagnosis**: カート追加 API のレスポンスが返る前に合計金額のアサートが行われている。
+
+**Fix recipe**: 
+```javascript
+await page.waitForResponse(response => response.url().includes('cart/add') && response.status() === 200);
+```
+
+**Source issues**: #9
+
+
+### P-locator-timeout — 注文確定ボタンがクリックできない
+
+**Symptom**: 
+```
+Error: locator.click: Timeout 5000ms exceeded.
+  Call log:
+    - waiting for getByRole('button', { name: '注文を確定する' })
+    -   element is not visible
+```
+
+**Diagnosis**: 注文確定ボタンを覆っているローディングスピナーが消える前にクリックを試みている。
+
+**Fix recipe**: 
+```javascript
+await page.waitForSelector('button[name="注文を確定する"]', { state: 'visible' });
+```
+
+**Source issues**: #7
