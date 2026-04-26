@@ -1,0 +1,141 @@
+name: Promote confirmed patterns (GitHub Models)
+
+# 月次cronで confidence-high && status-confirmed な open issue を集約し、
+# .github/instructions/qa-knowledge-base.instructions.md に **追記する** PR を起こす。
+#
+# Claude 版 (promote-to-instructions.yml) との差:
+#   - 賢いマージはしない。新パターン候補を **末尾に追記するだけ**
+#   - 既存パターンとの重複統合・Hard bans 違反 fix の選別は **PR レビューワーが目視チェック**
+#   - 月次運用を推奨（週次だと重複が積み上がりやすい）
+#   - API key 不要、GITHUB_TOKEN だけで動く
+#
+# Setup:
+#   - Settings > Actions > General で
+#     "Allow GitHub Actions to create and approve pull requests" を有効化
+
+on:
+  schedule:
+    # 毎月 1日 9:00 JST = 毎月 1日 0:00 UTC
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: read
+  pull-requests: write
+  models: read
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find issues to promote
+        id: find
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue list \
+            --label confidence-high \
+            --label status-confirmed \
+            --state open \
+            --limit 20 \
+            --json number,title,body,labels \
+            > /tmp/issues.json
+          count=$(jq 'length' /tmp/issues.json)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          if [ "$count" != "0" ]; then
+            issues_list=$(jq -r 'map("#\(.number)") | join(", ")' /tmp/issues.json)
+            echo "list=$issues_list" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build prompt file
+        if: steps.find.outputs.count != '0'
+        run: |
+          {
+            echo "次の confirmed flaky-pattern issues を Pattern catalogue 形式に変換してください。"
+            echo
+            echo "## 出力フォーマット (各 issue ごとに 1 セクション)"
+            echo
+            echo '### P-<label> — <一行要約>'
+            echo
+            echo '**Symptom**: <error log 抜粋、コードブロックで囲む>'
+            echo
+            echo '**Diagnosis**: <root cause を 1-2 文で>'
+            echo
+            echo '**Fix recipe**: <agreed fix。コードブロックを含めて良い>'
+            echo
+            echo '**Source issues**: #<番号>'
+            echo
+            echo "## 厳守事項"
+            echo
+            echo "- 上記フォーマット以外の出力は禁止 (前置き/まとめ/挨拶も禁止)"
+            echo "- Hard bans 違反 fix (waitForTimeout, .nth(N), getByRole→CSS) は recipe に採用しない"
+            echo "- 各 issue を 1 セクション、複数あれば連続して出力"
+            echo "- セクション間は空行 1 行で区切る"
+            echo "- Hard bans セクション自体は出力しない (新規 Pattern のみ)"
+            echo "- 既存 Pattern との重複検査はしない (PR レビューワーが行う)"
+            echo
+            echo "## Issues"
+            echo
+            cat /tmp/issues.json
+          } > /tmp/promote-prompt.md
+
+      - name: Generate new pattern sections
+        id: infer
+        if: steps.find.outputs.count != '0'
+        uses: actions/ai-inference@v1
+        with:
+          model: openai/gpt-4o-mini
+          prompt-file: /tmp/promote-prompt.md
+          max-tokens: 3000
+
+      - name: Append to catalogue and open PR
+        if: steps.find.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_PATTERNS: ${{ steps.infer.outputs.response }}
+          ISSUES_LIST: ${{ steps.find.outputs.list }}
+        run: |
+          BR="auto/promote-copilot-$(date -u +%Y%m%d-%H%M%S)"
+          DATE=$(date -u +%Y-%m-%d)
+          CATALOGUE=.github/instructions/qa-knowledge-base.instructions.md
+
+          {
+            echo
+            echo "<!-- Auto-promoted by GitHub Models on $DATE; reviewer must dedupe -->"
+            echo
+            printf '%s\n' "$NEW_PATTERNS"
+          } >> "$CATALOGUE"
+
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$BR"
+          git add "$CATALOGUE"
+          git commit -m "Promote confirmed flaky patterns ($DATE) [GitHub Models, append-only]"
+          git push -u origin "$BR"
+
+          gh pr create \
+            --title "Promote confirmed flaky patterns ($DATE) [GitHub Models, append-only]" \
+            --body "$(cat <<EOF
+          GitHub Models (\`gpt-4o-mini\`) 版の自動 promote PR (append-only)。
+
+          **Promoted issues**: $ISSUES_LIST
+
+          ## このPRの設計
+
+          GitHub Models は推論のみで賢いファイルマージができないため、本ワークフローは **新パターン候補を catalogue 末尾に追記するだけ** です。重複統合・Hard bans 違反検出は **このPRをレビューする人間が担当** します。
+
+          ## レビューチェックリスト
+
+          - [ ] 既存 Pattern (catalogue 上部) と症状が重複していないか。重複していれば既存セクションへ統合し、新規追加分を削除
+          - [ ] Hard bans 違反 fix (\`waitForTimeout\`, \`.nth(N)\`, \`getByRole\` → CSS 置換) が混入していないか
+          - [ ] Source issues の番号が正しいか
+          - [ ] Symptom / Diagnosis / Fix recipe のフォーマットが統一されているか
+          - [ ] Hard bans セクション自体が変更されていないか
+
+          より賢いマージが必要な場合は \`promote-to-instructions.yml\` (Claude Code Action 版) を手動で起動してください。
+          EOF
+          )" \
+            --label "status-promoted"

@@ -73,7 +73,10 @@ curl -L -o .github/instructions/qa-knowledge-base.instructions.md \
 |---|---|---|---|
 | `triage-issue-copilot.yml` | GitHub Models (`gpt-4o-mini`) | `issues: opened`（自動） | **ほぼゼロ**（権限ブロックだけ） |
 | `triage-issue.yml` | Claude Code Action | `workflow_dispatch`（手動） | GitHub App + API key 必要 |
+| `promote-to-instructions-copilot.yml` | GitHub Models (`gpt-4o-mini`) | 月次cron + 手動 | **ほぼゼロ**（権限ブロックだけ） |
 | `promote-to-instructions.yml` | Claude Code Action | 週次cron | GitHub App + API key 必要 |
+
+**promote 系の使い分け**: GitHub Models 版は append-only（末尾追記のみ）で、重複統合・Hard bans 違反検出は **PR レビューワーが目視で行う** 設計。Claude 版は catalogue 全体を読んで賢くマージ。**通常運用は GitHub Models 版（月次）**、catalogue が肥大化して整理が必要なときだけ Claude 版を手動で起動する、というのが現実的なリズムです。
 
 #### A. GitHub完結ルート（デフォルト推奨）
 

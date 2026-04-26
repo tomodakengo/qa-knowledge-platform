@@ -62,7 +62,10 @@ bash examples/seed-issues.sh
 |---|---|---|---|---|
 | `triage-issue-copilot.yml` | GitHub Models (`gpt-4o-mini`) | 自動 (`issues: opened`) | **不要**（権限ブロックだけ） | 無料 quota |
 | `triage-issue.yml` | Claude Code Action | 手動 (`workflow_dispatch`) | GitHub App + `ANTHROPIC_API_KEY` | Claude API 課金 |
+| `promote-to-instructions-copilot.yml` | GitHub Models (`gpt-4o-mini`) | 月次cron + 手動 | **不要**（権限ブロックだけ） | 無料 quota |
 | `promote-to-instructions.yml` | Claude Code Action | 週次cron | GitHub App + `ANTHROPIC_API_KEY` | Claude API 課金 |
+
+> **promote 系ワークフローの違い**: GitHub Models 版は **末尾に追記するだけ**（重複統合は人間レビューワー担当）。Claude 版は既存 catalogue を読んで重複統合・Hard bans 違反検出まで自動。月次は GitHub Models で、深い整理が必要な時だけ Claude 版を手動 trigger するのが現実的。
 
 #### A. GitHub完結ルート（デフォルト推奨）
 
