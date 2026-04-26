@@ -1,0 +1,97 @@
+name: Promote confirmed patterns to instructions
+
+# 週次cronで confidence-high && status-confirmed な open issue を集約し、
+# .github/instructions/qa-knowledge-base.instructions.md に追記する PR を起こす。
+#
+# 前提:
+#   - リポジトリ Settings > Actions で "Allow GitHub Actions to create and approve pull requests" を有効化
+#   - リポジトリ Settings > Secrets で ANTHROPIC_API_KEY を設定済み
+
+on:
+  schedule:
+    # 毎週月曜 9:00 JST = 月曜 0:00 UTC
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find issues to promote
+        id: find
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue list \
+            --label confidence-high \
+            --label status-confirmed \
+            --state open \
+            --limit 20 \
+            --json number,title,body,labels \
+            > issues.json
+          count=$(jq 'length' issues.json)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Skip if nothing to promote
+        if: steps.find.outputs.count == '0'
+        run: echo "No issues to promote this week."
+
+      - name: Build promotion prompt
+        if: steps.find.outputs.count != '0'
+        id: prompt
+        run: |
+          {
+            echo 'PROMPT<<EOF'
+            echo 'You are promoting confirmed flaky-pattern issues into the QA knowledge base.'
+            echo
+            echo 'For each issue in issues.json, write a new section under "## Patterns" in'
+            echo '.github/instructions/qa-knowledge-base.instructions.md following this shape:'
+            echo
+            echo '### P-<label> — <one-line summary>'
+            echo
+            echo '**Symptom**: <reproduce error log snippet>'
+            echo '**Diagnosis**: <root cause from issue body>'
+            echo '**Fix recipe**: <the agreed fix, must NOT violate Hard bans>'
+            echo '**Source issues**: #<number>'
+            echo
+            echo 'Constraints:'
+            echo '- Do NOT add a Pattern that already exists in the file. Update instead.'
+            echo '- Reject any fix that uses waitForTimeout(), .nth(N), or replaces getByRole/getByTestId with raw selectors.'
+            echo '- Keep the Hard bans section unchanged.'
+            echo
+            echo 'Issues to promote:'
+            cat issues.json
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run Claude to draft updated catalogue
+        if: steps.find.outputs.count != '0'
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: ${{ steps.prompt.outputs.PROMPT }}
+          allowed_tools: 'Read,Edit,Write'
+
+      - name: Open PR
+        if: steps.find.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BR="auto/promote-$(date -u +%Y%m%d)"
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git checkout -b "$BR"
+          git add .github/instructions/qa-knowledge-base.instructions.md
+          git commit -m "Promote confirmed flaky patterns to QA knowledge base ($(date -u +%Y-%m-%d))"
+          git push -u origin "$BR"
+          gh pr create \
+            --title "Promote confirmed flaky patterns ($(date -u +%Y-%m-%d))" \
+            --body "Auto-generated promotion PR. Reviewer: please verify each new Pattern section against the source issue and reject any fix that violates Hard bans." \
+            --label "status-promoted"

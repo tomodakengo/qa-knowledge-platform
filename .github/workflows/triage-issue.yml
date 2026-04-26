@@ -1,0 +1,67 @@
+name: Triage issue with Claude
+
+# 起票直後の Issue に Pattern label / scope / 重複候補をコメント提案する。
+# 直接ラベル付与はせず、人間 triage 担当が確認してから付与する運用。
+#
+# 前提:
+#   - リポジトリ Settings > Secrets で ANTHROPIC_API_KEY を設定済み
+#   - .github/instructions/triage-prompt.instructions.md がプロンプトとして使われる
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    # ISSUE_TEMPLATE 経由で起票された issue だけを対象にする
+    if: contains(github.event.issue.labels.*.name, 'status-triage')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load triage prompt
+        id: prompt
+        run: |
+          {
+            echo 'PROMPT<<EOF'
+            cat .github/instructions/triage-prompt.instructions.md
+            echo
+            echo '---'
+            echo
+            echo '## Issue を triage する対象'
+            echo
+            echo '### タイトル'
+            echo '${{ github.event.issue.title }}'
+            echo
+            echo '### 本文'
+            echo '${{ github.event.issue.body }}'
+            echo
+            echo '### 既存ラベル'
+            echo '${{ join(github.event.issue.labels.*.name, ", ") }}'
+            echo EOF
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Call Claude
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: ${{ steps.prompt.outputs.PROMPT }}
+          # 出力をそのままコメント本文として使う
+          output_to_step_summary: false
+
+      - name: Post triage comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `${{ steps.claude.outputs.response }}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body
+            });
