@@ -56,8 +56,23 @@ bash examples/seed-issues.sh
 
 ### 4. AI 連携を有効化する（任意）
 
-- `.github/workflows/triage-issue.yml`: 起票時に Claude が自動でラベル付けを提案します（要 Claude Code Action のセットアップ）
-- `.github/workflows/promote-to-instructions.yml`: 週次で confidence-high な issue を `instructions/` に昇格する PR を作ります
+このテンプレは [Claude Code Action](https://github.com/anthropics/claude-code-action) を使う 2 つのワークフローを同梱しています:
+
+- `.github/workflows/triage-issue.yml`: issue 起票時に Claude が triage コメントを自動投稿
+- `.github/workflows/promote-to-instructions.yml`: 週次で confidence-high な issue を `instructions/` に昇格する PR を作成
+
+#### セットアップ手順
+
+1. **GitHub App のインストール**: ローカルの Claude Code から
+   ```bash
+   claude /install-github-app
+   ```
+   を実行すると、Anthropic 公式の GitHub App インストールと `ANTHROPIC_API_KEY` secret の登録までを対話で完了できます
+
+2. **PR 作成権限の有効化** (`promote-to-instructions.yml` を使う場合のみ):
+   Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" にチェック
+
+3. 動作確認: Issues タブから `flaky-pattern.yml` テンプレで適当に1件起票 → 1〜2分後に Claude の triage 提案コメントが付けば成功
 
 詳細は `docs/promotion-workflow.md` を参照。
 

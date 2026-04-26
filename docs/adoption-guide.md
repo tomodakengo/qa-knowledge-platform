@@ -65,28 +65,46 @@ curl -L -o .github/instructions/qa-knowledge-base.instructions.md \
 - **Hard bans** セクション: プロジェクト固有の禁則を追加（例: 「`evaluate()` で DOM を直接操作しない」など）
 - **Patterns**: 既に踏んだことのある失敗パターンがあれば追記。**空からスタートしても問題ありません**。Issue を起票しながら週次で育てていきます
 
-### 5. 既存の auto-heal pipeline と統合する
+### 5. Claude Code Action を有効化する（triage / promotion ワークフロー用）
+
+`.github/workflows/triage-issue.yml` と `promote-to-instructions.yml` を動かすには、`anthropics/claude-code-action@v1` のセットアップが必要です。
+
+ローカルの Claude Code CLI から1コマンドで完了します:
+
+```bash
+claude /install-github-app
+```
+
+これで以下が自動で行われます:
+
+- Anthropic 公式 GitHub App のインストール
+- `ANTHROPIC_API_KEY` secret の登録
+- 初回ワークフロー検証
+
+`promote-to-instructions.yml` を使う場合は、追加で:
+
+- Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" を有効化
+
+### 6. 既存の auto-heal pipeline と統合する
 
 すでに [playwright-auto-heal-claude-code](https://zenn.dev/yuden/articles/playwright-auto-heal-claude-code) のような auto-heal ワークフローがある場合:
 
-- Claude Code に渡すプロンプトに `qa-knowledge-base.instructions.md` を追加
-- 失敗したテストの error log と一緒に instructions を context として load
-- Pattern catalogue 内のパターン照合を最初に行わせる
-
-例（GitHub Actions step）:
+- 失敗解析プロンプトに `qa-knowledge-base.instructions.md` を Read させる
+- `lookup-pattern` Skill で過去の同症状 issue を fetch させてから fix 提案
+- 例（Action 呼び出し）:
 
 ```yaml
-- name: Run Claude with QA knowledge
-  uses: anthropics/claude-code-action@v1
+- uses: anthropics/claude-code-action@v1
   with:
+    anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+    claude_args: '--allowedTools "Read,Edit,Bash(gh issue list:*),Bash(gh issue view:*)"'
     prompt: |
       You are an auto-heal agent for Playwright tests.
-      Read the failure log below and the QA knowledge base, then propose a fix.
-      
-      ## QA Knowledge Base
-      $(cat .github/instructions/qa-knowledge-base.instructions.md)
-      
-      ## Failure log
+      First Read .github/instructions/qa-knowledge-base.instructions.md.
+      Then look up similar past issues with `gh issue list --label P-<candidate> --state all`.
+      Only after that, propose a fix that does NOT violate Hard bans.
+
+      Failure log:
       $(cat playwright-report/results.json)
 ```
 

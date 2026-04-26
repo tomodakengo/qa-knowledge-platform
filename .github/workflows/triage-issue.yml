@@ -3,9 +3,10 @@ name: Triage issue with Claude
 # 起票直後の Issue に Pattern label / scope / 重複候補をコメント提案する。
 # 直接ラベル付与はせず、人間 triage 担当が確認してから付与する運用。
 #
-# 前提:
-#   - リポジトリ Settings > Secrets で ANTHROPIC_API_KEY を設定済み
-#   - .github/instructions/triage-prompt.instructions.md がプロンプトとして使われる
+# Setup:
+#   1. このリポジトリで一度だけ:  claude /install-github-app
+#      → Anthropic 公式の GitHub App をインストール、ANTHROPIC_API_KEY secret を登録
+#   2. .github/instructions/triage-prompt.instructions.md がプロンプトとして使われる
 
 on:
   issues:
@@ -14,6 +15,7 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: read
 
 jobs:
   triage:
@@ -23,45 +25,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Load triage prompt
-        id: prompt
-        run: |
-          {
-            echo 'PROMPT<<EOF'
-            cat .github/instructions/triage-prompt.instructions.md
-            echo
-            echo '---'
-            echo
-            echo '## Issue を triage する対象'
-            echo
-            echo '### タイトル'
-            echo '${{ github.event.issue.title }}'
-            echo
-            echo '### 本文'
-            echo '${{ github.event.issue.body }}'
-            echo
-            echo '### 既存ラベル'
-            echo '${{ join(github.event.issue.labels.*.name, ", ") }}'
-            echo EOF
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Call Claude
-        id: claude
+      - name: Run Claude triage
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: ${{ steps.prompt.outputs.PROMPT }}
-          # 出力をそのままコメント本文として使う
-          output_to_step_summary: false
+          claude_args: '--allowedTools "Read,Bash(gh issue comment:*),Bash(gh issue list:*),Bash(gh issue view:*)"'
+          prompt: |
+            あなたは GitHub Issue の triage 担当です。
 
-      - name: Post triage comment
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const body = `${{ steps.claude.outputs.response }}`;
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body
-            });
+            まず `.github/instructions/triage-prompt.instructions.md` を Read で読み、書かれているフォーマットと方針に従ってください。
+
+            triage 対象の issue 情報:
+
+            - リポジトリ: ${{ github.repository }}
+            - issue 番号: #${{ github.event.issue.number }}
+            - タイトル: ${{ github.event.issue.title }}
+            - 既存ラベル: ${{ join(github.event.issue.labels.*.name, ', ') }}
+
+            手順:
+            1. `gh issue view ${{ github.event.issue.number }}` で本文を取得
+            2. 候補となる Pattern label について `gh issue list --label P-<候補> --state all --limit 5` で重複検索
+            3. triage-prompt.instructions.md のフォーマットに従ったコメントを作成
+            4. `gh issue comment ${{ github.event.issue.number }} --body "<作成したコメント>"` で投稿
+
+            憶測で断定しないこと。確度が低ければ「不明」と書く。
