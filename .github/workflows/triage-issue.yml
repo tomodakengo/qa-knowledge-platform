@@ -1,16 +1,25 @@
-name: Triage issue with Claude
+name: Triage issue with Claude (manual)
 
-# 起票直後の Issue に Pattern label / scope / 重複候補をコメント提案する。
-# 直接ラベル付与はせず、人間 triage 担当が確認してから付与する運用。
+# Claude Code Action 版の triage ワークフロー。
+# GitHub Models 版 (triage-issue-copilot.yml) が自動 trigger で動くのに対し、
+# こちらは workflow_dispatch のみ＝**手動起動の高品質オプション** という位置づけ。
+#
+# 使いどころ:
+#   - 自動 triage (GitHub Models) の結果が薄かった issue に対して、より深い分析を Claude に頼みたい
+#   - Hard bans 違反疑いの精査、過去 issue の重複検索を厳密にやりたい
+#   - 新しい Pattern を catalogue に取り込むかどうかの判断材料が欲しい
 #
 # Setup:
-#   1. このリポジトリで一度だけ:  claude /install-github-app
-#      → Anthropic 公式の GitHub App をインストール、ANTHROPIC_API_KEY secret を登録
-#   2. .github/instructions/triage-prompt.instructions.md がプロンプトとして使われる
+#   - https://github.com/apps/claude を対象リポジトリにインストール
+#   - Settings > Secrets > Actions に ANTHROPIC_API_KEY を登録
 
 on:
-  issues:
-    types: [opened]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Triage したい issue 番号（例: 42）'
+        required: true
+        type: number
 
 permissions:
   contents: read
@@ -21,8 +30,6 @@ permissions:
 jobs:
   triage:
     runs-on: ubuntu-latest
-    # ISSUE_TEMPLATE 経由で起票された issue だけを対象にする
-    if: contains(github.event.issue.labels.*.name, 'status-triage')
     steps:
       - uses: actions/checkout@v4
 
@@ -36,17 +43,16 @@ jobs:
 
             まず `.github/instructions/triage-prompt.instructions.md` を Read で読み、書かれているフォーマットと方針に従ってください。
 
-            triage 対象の issue 情報:
+            triage 対象:
 
             - リポジトリ: ${{ github.repository }}
-            - issue 番号: #${{ github.event.issue.number }}
-            - タイトル: ${{ github.event.issue.title }}
-            - 既存ラベル: ${{ join(github.event.issue.labels.*.name, ', ') }}
+            - issue 番号: #${{ inputs.issue_number }}
 
             手順:
-            1. `gh issue view ${{ github.event.issue.number }}` で本文を取得
+            1. `gh issue view ${{ inputs.issue_number }}` でタイトル・本文・既存ラベルを取得
             2. 候補となる Pattern label について `gh issue list --label P-<候補> --state all --limit 5` で重複検索
             3. triage-prompt.instructions.md のフォーマットに従ったコメントを作成
-            4. `gh issue comment ${{ github.event.issue.number }} --body "<作成したコメント>"` で投稿
+            4. `gh issue comment ${{ inputs.issue_number }} --body "<作成したコメント>"` で投稿
 
             憶測で断定しないこと。確度が低ければ「不明」と書く。
+            既に GitHub Models 版の triage コメントが付いていたら、その内容を踏まえて **追加観点** を提示する形でコメントすること（重複は避ける）。

@@ -65,51 +65,73 @@ curl -L -o .github/instructions/qa-knowledge-base.instructions.md \
 - **Hard bans** セクション: プロジェクト固有の禁則を追加（例: 「`evaluate()` で DOM を直接操作しない」など）
 - **Patterns**: 既に踏んだことのある失敗パターンがあれば追記。**空からスタートしても問題ありません**。Issue を起票しながら週次で育てていきます
 
-### 5. Claude Code Action を有効化する（triage / promotion ワークフロー用）
+### 5. AI triage を有効化する（2系統から選ぶ）
 
-`.github/workflows/triage-issue.yml` と `promote-to-instructions.yml` を動かすには、`anthropics/claude-code-action@v1` のセットアップが必要です。2 通りあります。
+このテンプレは triage を 2 系統で提供します。**自分のチームに合うほうを選択 or 併用してください**。
 
-#### A. CLI で一括セットアップ
+| ワークフロー | エンジン | trigger | セットアップコスト |
+|---|---|---|---|
+| `triage-issue-copilot.yml` | GitHub Models (`gpt-4o-mini`) | `issues: opened`（自動） | **ほぼゼロ**（権限ブロックだけ） |
+| `triage-issue.yml` | Claude Code Action | `workflow_dispatch`（手動） | GitHub App + API key 必要 |
+| `promote-to-instructions.yml` | Claude Code Action | 週次cron | GitHub App + API key 必要 |
 
-ローカルの Claude Code から:
+#### A. GitHub完結ルート（デフォルト推奨）
+
+`triage-issue-copilot.yml` は `actions/ai-inference@v1` で GitHub Models (`gpt-4o-mini`) を呼びます。**API key 不要**、Free アカウントでも動作します。
+
+設定済みの permissions:
+
+```yaml
+permissions:
+  contents: read
+  issues: write
+  models: read   # ← これがあれば GITHUB_TOKEN だけで動く
+```
+
+リポジトリ Settings → Actions → General → Workflow permissions が `Read and write` になっていることだけ確認してください。
+
+#### B. Claude Code Action ルート（高品質オプション）
+
+`triage-issue.yml`（手動）と `promote-to-instructions.yml`（週次cron）は Claude Code Action を使います。長文・深い分析・instructions ファイルの活用が必要なときの選択肢。
+
+##### B-1. CLI で一括セットアップ
 
 ```bash
 claude /install-github-app
 ```
 
-GitHub App インストールと `ANTHROPIC_API_KEY` 登録までを対話で完了します。OAuth 認証ウィンドウが開けない環境（remote control 中 / SSH のみ / CI 環境）では B を使ってください。
+OAuth ブラウザが開けない環境（remote control / SSH / CI）では B-2 を使ってください。
 
-#### B. 手動セットアップ（GitHub Web UI のみで完結）
+##### B-2. 手動セットアップ（GitHub Web UI のみで完結）
 
 1. **Anthropic 公式 GitHub App をインストール**
    - [https://github.com/apps/claude](https://github.com/apps/claude) を開く
-   - "Install" をクリック
-   - "Only select repositories" でこのリポジトリを選択
+   - "Install" → "Only select repositories" で対象リポジトリを選択
    - 権限（Contents R/W、Issues R/W、Pull Requests R/W）を許可
 
 2. **`ANTHROPIC_API_KEY` を secret として登録**
-   - リポジトリの Settings → Secrets and variables → Actions
-   - "New repository secret"
+   - Settings → Secrets and variables → Actions → "New repository secret"
    - Name: `ANTHROPIC_API_KEY`
-   - Secret: [console.anthropic.com](https://console.anthropic.com) で発行した API key
-   - "Add secret"
+   - Value: [console.anthropic.com](https://console.anthropic.com) で発行した API key
 
 3. **PR 作成許可の有効化** (`promote-to-instructions.yml` を使う場合のみ)
-   - Settings → Actions → General
-   - "Workflow permissions" セクション
-   - "Allow GitHub Actions to create and approve pull requests" にチェック → Save
+   - Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" にチェック → Save
 
-#### App なしで運用できる？
+##### B-3. 手動 triage の実行方法
 
-このリポジトリ内の issue / PR にだけ反応させる用途なら、原理的には GitHub App をインストールせず `secrets.GITHUB_TOKEN`（GitHub Actions が自動発行）と workflow `permissions:` ブロックだけで動かせる可能性があります。ただし `anthropics/claude-code-action` は **App 前提で設計されている** ため、App をインストールしておく方がトラブル少です。クロスリポジトリで動かす場合は App 必須。
+```bash
+gh workflow run triage-issue.yml -f issue_number=42
+```
+
+または GitHub UI: Actions → "Triage issue with Claude (manual)" → "Run workflow" → issue 番号入力。
 
 #### 動作確認
 
-Issues タブから `flaky-pattern.yml` テンプレで1件起票 → 1〜2分後に Claude の triage 提案コメントが付けば成功です。動かない場合は:
+Issues タブから `🌀 Flaky pattern report` テンプレで1件起票 → 1〜2分後に triage 提案コメントが付けば成功。A ルート（GitHub Models）が自動起動します。動かない場合:
 
-- Actions タブで該当 workflow run の log を確認
-- `ANTHROPIC_API_KEY` secret が正しいスコープ（Actions secrets であって Codespaces secrets ではない）に登録されているか確認
-- App の権限が Contents/Issues/PRs すべて R/W になっているか確認
+- Actions タブで `Triage issue (GitHub Models)` の run log を確認
+- リポジトリ Settings → Actions → General → Workflow permissions を確認
+- GitHub Models の月次 quota を消費し切っていないか（Settings → Billing → Models usage）
 
 ### 6. 既存の auto-heal pipeline と統合する
 
@@ -117,7 +139,7 @@ Issues タブから `flaky-pattern.yml` テンプレで1件起票 → 1〜2分�
 
 - 失敗解析プロンプトに `qa-knowledge-base.instructions.md` を Read させる
 - `lookup-pattern` Skill で過去の同症状 issue を fetch させてから fix 提案
-- 例（Action 呼び出し）:
+- 例（Claude Code Action 版）:
 
 ```yaml
 - uses: anthropics/claude-code-action@v1
@@ -133,6 +155,8 @@ Issues タブから `flaky-pattern.yml` テンプレで1件起票 → 1〜2分�
       Failure log:
       $(cat playwright-report/results.json)
 ```
+
+GitHub Models 版で同じことをしたい場合は `actions/ai-inference@v1` の `system-prompt-file: .github/instructions/qa-knowledge-base.instructions.md` を使ってください。
 
 ### 6. 最初のサンプル起票で動作確認
 

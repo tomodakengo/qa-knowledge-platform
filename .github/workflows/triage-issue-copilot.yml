@@ -1,0 +1,64 @@
+name: Triage issue (GitHub Models)
+
+# 起票直後の Issue に Pattern label / scope / 重複候補をコメント提案する。
+# GitHub Models 経由で完結するため、外部API key 不要・GitHub App 不要。
+# `actions/ai-inference@v1` + auto-provided GITHUB_TOKEN だけで動く。
+#
+# Setup:
+#   - ANTHROPIC_API_KEY などの secret は **不要**
+#   - 個人/Free アカウントでも GitHub Models の無料 quota で利用可能
+#   - 必要な permission ブロックは下に定義済み（`models: read` がポイント）
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+  models: read
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    # ISSUE_TEMPLATE 経由で起票された issue だけを対象にする
+    if: contains(github.event.issue.labels.*.name, 'status-triage')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build user prompt file
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_LABELS: ${{ join(github.event.issue.labels.*.name, ', ') }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          {
+            echo "## 対象 Issue"
+            echo
+            echo "- 番号: #$ISSUE_NUMBER"
+            echo "- タイトル: $ISSUE_TITLE"
+            echo "- 既存ラベル: $ISSUE_LABELS"
+            echo
+            echo "## 本文"
+            echo
+            echo "$ISSUE_BODY"
+          } > /tmp/user-prompt.md
+
+      - name: Run triage with GitHub Models
+        id: infer
+        uses: actions/ai-inference@v1
+        with:
+          model: openai/gpt-4o-mini
+          system-prompt-file: .github/instructions/triage-prompt.instructions.md
+          prompt-file: /tmp/user-prompt.md
+          max-tokens: 1500
+
+      - name: Post triage comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          BODY: ${{ steps.infer.outputs.response }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --repo "$REPO" --body "$BODY"

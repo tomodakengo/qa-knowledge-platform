@@ -54,29 +54,42 @@ gh workflow run sync-labels.yml
 bash examples/seed-issues.sh
 ```
 
-### 4. AI 連携を有効化する（任意）
+### 4. AI 連携を有効化する
 
-このテンプレは [Claude Code Action](https://github.com/anthropics/claude-code-action) を使う 2 つのワークフローを同梱しています:
+このテンプレは triage を 2 系統で提供します。**自分のチームに合うほうを選んでください**。
 
-- `.github/workflows/triage-issue.yml`: issue 起票時に Claude が triage コメントを自動投稿
-- `.github/workflows/promote-to-instructions.yml`: 週次で confidence-high な issue を `instructions/` に昇格する PR を作成
+| ワークフロー | エンジン | trigger | セットアップ | コスト |
+|---|---|---|---|---|
+| `triage-issue-copilot.yml` | GitHub Models (`gpt-4o-mini`) | 自動 (`issues: opened`) | **不要**（権限ブロックだけ） | 無料 quota |
+| `triage-issue.yml` | Claude Code Action | 手動 (`workflow_dispatch`) | GitHub App + `ANTHROPIC_API_KEY` | Claude API 課金 |
+| `promote-to-instructions.yml` | Claude Code Action | 週次cron | GitHub App + `ANTHROPIC_API_KEY` | Claude API 課金 |
 
-#### セットアップ手順
+#### A. GitHub完結ルート（デフォルト推奨）
 
-##### A. CLI で一括セットアップ（手元の Claude Code から）
+`triage-issue-copilot.yml` は `actions/ai-inference@v1` を使い、**外部API key なし** で動きます。秘密情報の登録不要、Free アカウントでも動作します。
+
+セットアップは：
+
+- **何もしなくてOK**。リポジトリを clone した時点で `permissions: { models: read }` 付きで起動可能になっています
+
+#### B. Claude Code Action ルート（より深い分析が欲しい時）
+
+`triage-issue.yml`（手動 trigger）と `promote-to-instructions.yml`（週次cron）は Claude Code Action を使います。GitHub Models より長文・複雑な分析に向きます。
+
+##### B-1. CLI で一括セットアップ
 
 ```bash
 claude /install-github-app
 ```
 
-GitHub App インストールと `ANTHROPIC_API_KEY` 登録までを対話で完了します。OAuth ブラウザが開けない環境（remote control / CI / SSH 等）では B の手動手順を使ってください。
+GitHub App インストールと `ANTHROPIC_API_KEY` 登録までを対話で完了します。OAuth ブラウザが開けない環境（remote control / CI / SSH 等）では B-2 を使ってください。
 
-##### B. 手動セットアップ
+##### B-2. 手動セットアップ
 
 1. **GitHub App をインストール**
    - [https://github.com/apps/claude](https://github.com/apps/claude) にアクセス
    - "Install" → 対象リポジトリを選択
-   - 自動でリクエストされる権限（Contents R/W、Issues R/W、Pull Requests R/W）を許可
+   - 権限（Contents R/W、Issues R/W、Pull Requests R/W）を許可
 
 2. **API Key を secret として登録**
    - Settings → Secrets and variables → Actions → "New repository secret"
@@ -86,9 +99,17 @@ GitHub App インストールと `ANTHROPIC_API_KEY` 登録までを対話で完
 3. **PR 作成権限の有効化** (`promote-to-instructions.yml` を使う場合のみ)
    - Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" にチェック
 
-##### 動作確認
+##### B-3. 手動 triage の実行
 
-Issues タブから `flaky-pattern.yml` テンプレで適当に1件起票 → 1〜2分後に Claude の triage 提案コメントが付けば成功。
+```bash
+gh workflow run triage-issue.yml -f issue_number=42
+```
+
+または GitHub UI: Actions タブ → "Triage issue with Claude (manual)" → "Run workflow" → issue 番号を入力。
+
+#### 動作確認
+
+Issues タブから `🌀 Flaky pattern report` テンプレで適当に1件起票 → 1〜2分後に triage 提案コメントが付けば成功（A ルートのみで起動します）。
 
 詳細は `docs/promotion-workflow.md` を参照。
 
