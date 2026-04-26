@@ -63,16 +63,32 @@ bash examples/seed-issues.sh
 
 #### セットアップ手順
 
-1. **GitHub App のインストール**: ローカルの Claude Code から
-   ```bash
-   claude /install-github-app
-   ```
-   を実行すると、Anthropic 公式の GitHub App インストールと `ANTHROPIC_API_KEY` secret の登録までを対話で完了できます
+##### A. CLI で一括セットアップ（手元の Claude Code から）
 
-2. **PR 作成権限の有効化** (`promote-to-instructions.yml` を使う場合のみ):
-   Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" にチェック
+```bash
+claude /install-github-app
+```
 
-3. 動作確認: Issues タブから `flaky-pattern.yml` テンプレで適当に1件起票 → 1〜2分後に Claude の triage 提案コメントが付けば成功
+GitHub App インストールと `ANTHROPIC_API_KEY` 登録までを対話で完了します。OAuth ブラウザが開けない環境（remote control / CI / SSH 等）では B の手動手順を使ってください。
+
+##### B. 手動セットアップ
+
+1. **GitHub App をインストール**
+   - [https://github.com/apps/claude](https://github.com/apps/claude) にアクセス
+   - "Install" → 対象リポジトリを選択
+   - 自動でリクエストされる権限（Contents R/W、Issues R/W、Pull Requests R/W）を許可
+
+2. **API Key を secret として登録**
+   - Settings → Secrets and variables → Actions → "New repository secret"
+   - Name: `ANTHROPIC_API_KEY`
+   - Value: [console.anthropic.com](https://console.anthropic.com) で発行した API key
+
+3. **PR 作成権限の有効化** (`promote-to-instructions.yml` を使う場合のみ)
+   - Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" にチェック
+
+##### 動作確認
+
+Issues タブから `flaky-pattern.yml` テンプレで適当に1件起票 → 1〜2分後に Claude の triage 提案コメントが付けば成功。
 
 詳細は `docs/promotion-workflow.md` を参照。
 

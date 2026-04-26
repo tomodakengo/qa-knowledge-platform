@@ -67,23 +67,49 @@ curl -L -o .github/instructions/qa-knowledge-base.instructions.md \
 
 ### 5. Claude Code Action を有効化する（triage / promotion ワークフロー用）
 
-`.github/workflows/triage-issue.yml` と `promote-to-instructions.yml` を動かすには、`anthropics/claude-code-action@v1` のセットアップが必要です。
+`.github/workflows/triage-issue.yml` と `promote-to-instructions.yml` を動かすには、`anthropics/claude-code-action@v1` のセットアップが必要です。2 通りあります。
 
-ローカルの Claude Code CLI から1コマンドで完了します:
+#### A. CLI で一括セットアップ
+
+ローカルの Claude Code から:
 
 ```bash
 claude /install-github-app
 ```
 
-これで以下が自動で行われます:
+GitHub App インストールと `ANTHROPIC_API_KEY` 登録までを対話で完了します。OAuth 認証ウィンドウが開けない環境（remote control 中 / SSH のみ / CI 環境）では B を使ってください。
 
-- Anthropic 公式 GitHub App のインストール
-- `ANTHROPIC_API_KEY` secret の登録
-- 初回ワークフロー検証
+#### B. 手動セットアップ（GitHub Web UI のみで完結）
 
-`promote-to-instructions.yml` を使う場合は、追加で:
+1. **Anthropic 公式 GitHub App をインストール**
+   - [https://github.com/apps/claude](https://github.com/apps/claude) を開く
+   - "Install" をクリック
+   - "Only select repositories" でこのリポジトリを選択
+   - 権限（Contents R/W、Issues R/W、Pull Requests R/W）を許可
 
-- Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests" を有効化
+2. **`ANTHROPIC_API_KEY` を secret として登録**
+   - リポジトリの Settings → Secrets and variables → Actions
+   - "New repository secret"
+   - Name: `ANTHROPIC_API_KEY`
+   - Secret: [console.anthropic.com](https://console.anthropic.com) で発行した API key
+   - "Add secret"
+
+3. **PR 作成許可の有効化** (`promote-to-instructions.yml` を使う場合のみ)
+   - Settings → Actions → General
+   - "Workflow permissions" セクション
+   - "Allow GitHub Actions to create and approve pull requests" にチェック → Save
+
+#### App なしで運用できる？
+
+このリポジトリ内の issue / PR にだけ反応させる用途なら、原理的には GitHub App をインストールせず `secrets.GITHUB_TOKEN`（GitHub Actions が自動発行）と workflow `permissions:` ブロックだけで動かせる可能性があります。ただし `anthropics/claude-code-action` は **App 前提で設計されている** ため、App をインストールしておく方がトラブル少です。クロスリポジトリで動かす場合は App 必須。
+
+#### 動作確認
+
+Issues タブから `flaky-pattern.yml` テンプレで1件起票 → 1〜2分後に Claude の triage 提案コメントが付けば成功です。動かない場合は:
+
+- Actions タブで該当 workflow run の log を確認
+- `ANTHROPIC_API_KEY` secret が正しいスコープ（Actions secrets であって Codespaces secrets ではない）に登録されているか確認
+- App の権限が Contents/Issues/PRs すべて R/W になっているか確認
 
 ### 6. 既存の auto-heal pipeline と統合する
 
