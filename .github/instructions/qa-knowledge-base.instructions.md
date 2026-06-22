@@ -59,7 +59,7 @@ waiting for getByRole('button', { name: 'Save' })
   await app.products().header.cartLink.click();
   ```
 
-**Source issues**: ナレッジ昇格時に `gh issue list --label P-locator-timeout` で原典を辿れる
+**Source issues**: #7（checkout 確定ボタンをローディングスピナーが覆い CI で timeout）。その他は `gh issue list --label P-locator-timeout` で原典を辿れる
 
 ---
 
@@ -118,6 +118,8 @@ API 呼び出しが返ってくる前に assert が走っている。
   await cartResponse;
   await expect(app.cart().total).toHaveText('¥3,200');
   ```
+
+**Source issues**: #9（cart total assert で expected ¥3,200 / received ¥0。fixture 側で `waitForResponse` の追加が望ましい）
 
 ---
 
