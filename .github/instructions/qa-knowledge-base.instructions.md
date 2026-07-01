@@ -132,3 +132,49 @@ API 呼び出しが返ってくる前に assert が走っている。
 5. 人間レビュー後にマージ → AI が次回失敗時から参照する
 
 詳しくは `docs/promotion-workflow.md`。
+
+<!-- Auto-promoted by GitHub Models on 2026-07-01; reviewer must dedupe -->
+
+### P-network-race — カートの合計金額が正しく反映されない
+
+**Symptom**: 
+```
+Error: expect(locator).toHaveText('¥3,200')
+Expected string: "¥3,200"
+Received string: "¥0"
+  Locator: getByTestId('cart-total')
+  at Object.<anonymous> (/home/runner/.../cart.spec.ts:24:7)
+```
+
+**Diagnosis**: カート追加 API のレスポンスが返る前に total assert が走っていることが原因です。
+
+**Fix recipe**: 
+```javascript
+await page.waitForResponse(response => response.url().includes('/api/cart') && response.status() === 200);
+expect(await locator.evaluate(el => el.textContent)).toBe('¥3,200');
+```
+
+**Source issues**: #9
+
+
+### P-locator-timeout — 注文確定ボタンがクリックできない
+
+**Symptom**: 
+```
+Error: locator.click: Timeout 5000ms exceeded.
+  Call log:
+    - waiting for getByRole('button', { name: '注文を確定する' })
+    -   element is not visible
+  at Object.click (/home/runner/.../checkout-page.ts:42:5)
+  at Context.<anonymous> (/home/runner/.../tests/checkout.spec.ts:18:3)
+```
+
+**Diagnosis**: ローディングスピナーが消える前に注文確定ボタンをクリックしようとしているため、失敗しています。
+
+**Fix recipe**: 
+```javascript
+await page.waitForSelector('css=selector-to-loading-spinner', { state: 'hidden' });
+await locator.click();
+```
+
+**Source issues**: #7
