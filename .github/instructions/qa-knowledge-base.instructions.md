@@ -46,6 +46,8 @@ waiting for getByRole('button', { name: 'Save' })
 
 要素は DOM に存在するが actionable ではない（オーバーレイで覆われている / `disabled` / アニメーション中）。
 
+ローカルでは画面遷移が速いため踏まず、CI runner が遅いときだけ再現する、という形で "CI 限定 flaky" に見えることがある（#7）。**環境差ではなく待機不足**として扱う。
+
 **Fix recipe**
 
 - そのアクション**だけ**の per-call timeout を伸ばす:
@@ -58,8 +60,14 @@ waiting for getByRole('button', { name: 'Save' })
   await expect(page.getByTestId('loading-overlay')).toBeHidden();
   await app.products().header.cartLink.click();
   ```
+- `element is not visible` が call log に出ていてローディングスピナーが原因なら、スピナーの非表示を待ってから click する（#7 の合意修正方針）:
+  ```ts
+  await expect(page.getByTestId('loading-spinner')).toBeHidden();
+  await app.checkout().confirmOrderButton.click();
+  ```
+  リトライ設定で通っているからと放置しない。retry は原因を隠すだけ。
 
-**Source issues**: ナレッジ昇格時に `gh issue list --label P-locator-timeout` で原典を辿れる
+**Source issues**: #7 / さらに `gh issue list --label P-locator-timeout` で原典を辿れる
 
 ---
 
@@ -104,9 +112,13 @@ Received string: "¥0"
 
 API 呼び出しが返ってくる前に assert が走っている。
 
+`Received string: "¥0"` のように **0 / 空文字 / プレースホルダが返る** のが典型。要素は既に存在するので locator は正しく、待機だけが足りていない。
+
+原因が個別テストではなく **fixture 側の初期化にレスポンス待機が無い** ケースがある（#9: `app.cart()` 初期化時に カート追加 API のレスポンスを待っていなかった）。同症状が複数テストに出ているなら fixture / Page Object を先に疑う。
+
 **Fix recipe**
 
-- **やってはいけない**: `waitForTimeout(2000)`
+- **やってはいけない**: `waitForTimeout(2000)`（一時的に通っても Hard bans 違反。#9 では起票前に除去されている）
 - **やる**: web-first assertion で Playwright の auto-retry を信頼する
   ```ts
   await expect(app.cart().total).toHaveText('¥3,200');
@@ -118,6 +130,9 @@ API 呼び出しが返ってくる前に assert が走っている。
   await cartResponse;
   await expect(app.cart().total).toHaveText('¥3,200');
   ```
+- scope が `scope-fixture` なら、この `waitForResponse` を **fixture の初期化側に入れて全テストで共有する**（#9 の合意修正方針）。テストごとに待機を書き足すのは再発する。
+
+**Source issues**: #9
 
 ---
 
