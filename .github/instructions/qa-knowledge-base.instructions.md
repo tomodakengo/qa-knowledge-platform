@@ -46,6 +46,8 @@ waiting for getByRole('button', { name: 'Save' })
 
 要素は DOM に存在するが actionable ではない（オーバーレイで覆われている / `disabled` / アニメーション中）。
 
+CI runner はローカルより画面遷移が遅いため、**ローカルで再現せず CI だけで落ちる** ことが多い。`element is not visible` が call log に出ている場合はほぼこのパターン。
+
 **Fix recipe**
 
 - そのアクション**だけ**の per-call timeout を伸ばす:
@@ -58,8 +60,18 @@ waiting for getByRole('button', { name: 'Save' })
   await expect(page.getByTestId('loading-overlay')).toBeHidden();
   await app.products().header.cartLink.click();
   ```
+- **リトライ設定で誤魔化さない**。「2回中1回は通る」は fix ではなく未修理の flaky。スピナー / オーバーレイの `toBeHidden()` を click の前に置く
 
-**Source issues**: ナレッジ昇格時に `gh issue list --label P-locator-timeout` で原典を辿れる
+**確認済みの実例**
+
+`tests/checkout.spec.ts > Checkout > should complete order` で `getByRole('button', { name: '注文を確定する' })` が `element is not visible` で timeout。注文確定ボタンをローディングスピナーが覆っていた。修正は click 前にスピナーの非表示を待つこと（Page Object `checkout-page.ts` 側）:
+
+```ts
+await expect(page.getByTestId('loading-overlay')).toBeHidden();
+await app.checkout().confirmOrderButton.click();
+```
+
+**Source issues**: #7（他の原典は `gh issue list --label P-locator-timeout` で辿れる）
 
 ---
 
@@ -118,6 +130,15 @@ API 呼び出しが返ってくる前に assert が走っている。
   await cartResponse;
   await expect(app.cart().total).toHaveText('¥3,200');
   ```
+- 同じテストファイル内で個別に待つのではなく、**fixture / Page Object の初期化側に待機を寄せる**。`app.cart()` を組み立てる時点でカート API のレスポンスを待っておけば、以降の assert すべてが安定する
+
+**確認済みの実例**
+
+`tests/cart.spec.ts > Cart > should reflect added item total` で `getByTestId('cart-total')` が `¥0`（期待 `¥3,200`）。カート追加 API のレスポンスが返る前に total を assert していた。`app.cart()` の初期化時にレスポンス待機が無かったのが根本原因で、修正は fixture 側への `waitForResponse` 追加。
+
+`page.waitForTimeout(2000)` を入れると通るが **Hard bans 違反なので採用しない**。「waitForTimeout で通った」は、このパターンであることの診断材料としてのみ使う。
+
+**Source issues**: #9（他の原典は `gh issue list --label P-network-race` で辿れる）
 
 ---
 
