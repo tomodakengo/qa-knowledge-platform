@@ -59,7 +59,18 @@ waiting for getByRole('button', { name: 'Save' })
   await app.products().header.cartLink.click();
   ```
 
-**Source issues**: ナレッジ昇格時に `gh issue list --label P-locator-timeout` で原典を辿れる
+**確認済みの派生ケース**
+
+- **CI 限定で `Timeout 5000ms exceeded` + `element is not visible`**（ローカルでは画面遷移が速く踏まない）
+  → ローディングスピナーが対象ボタンを覆っている。`getByRole` を CSS に置き換えるのではなく、スピナーの非表示を待つ:
+  ```ts
+  // tests/checkout.spec.ts > Checkout > should complete order
+  await expect(page.getByTestId('loading-spinner')).toBeHidden();
+  await app.checkout().submitButton.click(); // getByRole('button', { name: '注文を確定する' })
+  ```
+  → retry 設定で通っているだけの状態は "直った" とみなさない
+
+**Source issues**: #7 / それ以外は `gh issue list --label P-locator-timeout` で原典を辿れる
 
 ---
 
@@ -118,6 +129,22 @@ API 呼び出しが返ってくる前に assert が走っている。
   await cartResponse;
   await expect(app.cart().total).toHaveText('¥3,200');
   ```
+
+**確認済みの派生ケース**
+
+- **`getByTestId('cart-total')` が `¥0` のまま**（カート追加 API のレスポンス前に total を assert している）
+  → 単一テスト側ではなく **fixture 側** の修正が正。`app.cart()` の初期化でカート API のレスポンスを待たせる:
+  ```ts
+  // fixture 側: app.cart() 初期化時にレスポンス待機を入れる
+  const cartReady = page.waitForResponse(
+    r => r.url().includes('/api/cart') && r.ok(),
+  );
+  await app.cart().open();
+  await cartReady;
+  ```
+  → 同症状に `page.waitForTimeout(2000)` を入れると通るが **Hard bans 違反なので採用しない**（原典 issue でも一時しのぎとして試した後に外している）
+
+**Source issues**: #9
 
 ---
 
