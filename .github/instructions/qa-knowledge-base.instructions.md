@@ -58,8 +58,15 @@ waiting for getByRole('button', { name: 'Save' })
   await expect(page.getByTestId('loading-overlay')).toBeHidden();
   await app.products().header.cartLink.click();
   ```
+- ローディングスピナーが遷移直後のボタンを覆うケース（CI runner でのみ踏む）も同じ形。
+  `getByRole` を CSS に置き換えず、**スピナーの消滅を待ってから role locator で click** する:
+  ```ts
+  await expect(page.getByTestId('loading-spinner')).toBeHidden();
+  await page.getByRole('button', { name: '注文を確定する' }).click();
+  ```
+  リトライ設定で通してしまうと症状が隠れるだけなので、待機条件として明示する。
 
-**Source issues**: ナレッジ昇格時に `gh issue list --label P-locator-timeout` で原典を辿れる
+**Source issues**: #7 / 他は `gh issue list --label P-locator-timeout` で原典を辿れる
 
 ---
 
@@ -118,6 +125,11 @@ API 呼び出しが返ってくる前に assert が走っている。
   await cartResponse;
   await expect(app.cart().total).toHaveText('¥3,200');
   ```
+- カート追加直後の total assert のように **fixture 側の初期化がレスポンスを待っていない** 場合は、
+  個々のテストではなく `app.cart()` の初期化に `waitForResponse` を寄せる（`scope-fixture`）。
+  同じ症状を各テストで個別に回避すると再発する。
+
+**Source issues**: #9 / 他は `gh issue list --label P-network-race` で原典を辿れる
 
 ---
 
