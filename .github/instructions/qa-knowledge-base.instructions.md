@@ -46,6 +46,8 @@ waiting for getByRole('button', { name: 'Save' })
 
 要素は DOM に存在するが actionable ではない（オーバーレイで覆われている / `disabled` / アニメーション中）。
 
+ローカルでは画面遷移が速いため踏まず、CI runner の遅さで初めて顕在化することがある（#7）。「ローカルで再現しない」は本パターンを否定する材料にならない。
+
 **Fix recipe**
 
 - そのアクション**だけ**の per-call timeout を伸ばす:
@@ -58,8 +60,14 @@ waiting for getByRole('button', { name: 'Save' })
   await expect(page.getByTestId('loading-overlay')).toBeHidden();
   await app.products().header.cartLink.click();
   ```
+- ローディングスピナーがボタンを覆うケース（例: 注文確定ボタン）も同じ扱い。スピナーの消滅を web-first assertion で待ってから click する:
+  ```ts
+  await expect(page.getByTestId('loading-spinner')).toBeHidden();
+  await app.checkout().submitButton.click();
+  ```
+- **リトライ設定で通っているから放置**、は fix ではない。retry は症状を隠すだけで原因は残る（#7）
 
-**Source issues**: ナレッジ昇格時に `gh issue list --label P-locator-timeout` で原典を辿れる
+**Source issues**: #7 / 追加の原典は `gh issue list --label P-locator-timeout` で辿れる
 
 ---
 
@@ -104,6 +112,8 @@ Received string: "¥0"
 
 API 呼び出しが返ってくる前に assert が走っている。
 
+原因が **fixture / Page Object 側の初期化にレスポンス待機が無いこと** にある場合がある（#9: `app.cart()` の初期化がカート追加 API の完了を待っていなかった）。単一テストに `await` を足して回るのではなく、共通基盤側を直す。
+
 **Fix recipe**
 
 - **やってはいけない**: `waitForTimeout(2000)`
@@ -118,6 +128,9 @@ API 呼び出しが返ってくる前に assert が走っている。
   await cartResponse;
   await expect(app.cart().total).toHaveText('¥3,200');
   ```
+- `scope-fixture` と判定されたら、`waitForResponse` は fixture / Page Object の初期化側に置く。テスト本体は待機を意識しなくて済む状態にする
+
+**Source issues**: #9
 
 ---
 
