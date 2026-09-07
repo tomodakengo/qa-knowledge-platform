@@ -58,8 +58,16 @@ waiting for getByRole('button', { name: 'Save' })
   await expect(page.getByTestId('loading-overlay')).toBeHidden();
   await app.products().header.cartLink.click();
   ```
+- CI runner のほうがローカルより画面遷移が遅いため、ローカルで踏まない overlay 起因の timeout は
+  「CI だけで落ちる」形で顕在化する。**retry でごまかさず**、スピナーの非表示待ちを click の前に置く:
+  ```ts
+  // checkout: 注文確定ボタンをローディングスピナーが覆っている
+  await expect(page.getByTestId('loading-spinner')).toBeHidden();
+  await page.getByRole('button', { name: '注文を確定する' }).click();
+  ```
+  `getByRole` のまま待機条件を足すこと。CSS / XPath への置き換えや `.nth(N)` は不可。
 
-**Source issues**: ナレッジ昇格時に `gh issue list --label P-locator-timeout` で原典を辿れる
+**Source issues**: #7 / それ以外は `gh issue list --label P-locator-timeout` で原典を辿れる
 
 ---
 
@@ -118,6 +126,20 @@ API 呼び出しが返ってくる前に assert が走っている。
   await cartResponse;
   await expect(app.cart().total).toHaveText('¥3,200');
   ```
+- カート追加直後の total assert（`getByTestId('cart-total')` が `¥0` のまま）は
+  **fixture 側の初期化にレスポンス待機が無い**のが原因のことがある。テスト個別ではなく
+  `app.cart()` の fixture で追加 API の完了を待たせる:
+  ```ts
+  // fixtures: cart 初期化時に追加 API の完了まで待つ
+  const cartReady = page.waitForResponse(
+    r => r.url().includes('/api/cart') && r.request().method() === 'POST',
+  );
+  await app.products().addToCart(item);
+  await cartReady;
+  ```
+  `waitForTimeout(2000)` で通ったように見えても Hard bans 違反なので採用しない。
+
+**Source issues**: #9
 
 ---
 
