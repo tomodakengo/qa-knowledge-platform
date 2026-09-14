@@ -59,7 +59,19 @@ waiting for getByRole('button', { name: 'Save' })
   await app.products().header.cartLink.click();
   ```
 
-**Source issues**: ナレッジ昇格時に `gh issue list --label P-locator-timeout` で原典を辿れる
+**確認済みの実例 — ローディングスピナーに覆われた注文確定ボタン (#7)**
+
+`checkout > should complete order` が CI (nightly / PR) でのみ 10-50% の頻度で失敗する。
+`element is not visible` のまま `getByRole('button', { name: '注文を確定する' })` が 5000ms で timeout する。
+ローカルは画面遷移が速いため踏まないが、CI runner が遅いとスピナーが残り click を阻害する。
+**リトライ設定でごまかさず**、スピナーの消滅を待ってから click する:
+
+```ts
+await expect(page.getByTestId('loading-spinner')).toBeHidden();
+await app.checkout().confirmOrderButton.click();
+```
+
+**Source issues**: #7（他の原典は `gh issue list --label P-locator-timeout` で辿れる）
 
 ---
 
@@ -118,6 +130,24 @@ API 呼び出しが返ってくる前に assert が走っている。
   await cartResponse;
   await expect(app.cart().total).toHaveText('¥3,200');
   ```
+
+**確認済みの実例 — cart total が ¥0 のまま assert される (#9)**
+
+`cart > should reflect added item total` が CI (nightly) とローカル headless の双方で 10-50% 失敗する。
+根本原因は **fixture 側** で、`app.cart()` の初期化時にカート追加 API のレスポンス待機が無く、
+`/api/cart` が返る前に total の assert が走ること。単一テストではなく fixture を直すこと (`scope-fixture`)。
+
+```ts
+// fixture 内でカート初期化時にレスポンスを待つ
+const cartResponse = page.waitForResponse(r => r.url().includes('/api/cart'));
+await addItemToCart(page);
+await cartResponse;
+```
+
+> ⚠️ 起票時に一時しのぎとして試された `page.waitForTimeout(2000)` は **Hard bans 違反のため採用しない**。
+> 起票者も外した上で起票している。
+
+**Source issues**: #9
 
 ---
 
