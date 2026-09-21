@@ -58,8 +58,13 @@ waiting for getByRole('button', { name: 'Save' })
   await expect(page.getByTestId('loading-overlay')).toBeHidden();
   await app.products().header.cartLink.click();
   ```
+- ローカルでは通るが CI runner でだけ落ちる場合も同じパターン。画面遷移が遅いぶんスピナーの表示時間が伸びて click を阻害しているだけなので、**リトライ任せにせず** スピナーの非表示待ちを入れる:
+  ```ts
+  await expect(page.getByTestId('loading-spinner')).toBeHidden();
+  await app.checkout().confirmOrderButton.click();
+  ```
 
-**Source issues**: ナレッジ昇格時に `gh issue list --label P-locator-timeout` で原典を辿れる
+**Source issues**: #7 / それ以前の原典は `gh issue list --label P-locator-timeout` で辿れる
 
 ---
 
@@ -118,6 +123,10 @@ API 呼び出しが返ってくる前に assert が走っている。
   await cartResponse;
   await expect(app.cart().total).toHaveText('¥3,200');
   ```
+- 単一テストではなく **fixture 側** が原因のこともある。`app.cart()` のような Page Object の初期化がカート追加 API のレスポンスを待たずに返っていると、それを使う全テストが同じ症状で flaky になる。その場合は個々のテストではなく fixture の初期化に待機を入れる
+- ⚠️ 症状が同じでも `page.waitForTimeout(N)` で「通った」ことは修正の根拠にならない（Hard bans）。ローカル再現の切り分けに使ったとしても、必ず外してから web-first assertion / `waitForResponse` に置き換える
+
+**Source issues**: #9
 
 ---
 
