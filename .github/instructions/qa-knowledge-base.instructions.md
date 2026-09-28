@@ -58,8 +58,14 @@ waiting for getByRole('button', { name: 'Save' })
   await expect(page.getByTestId('loading-overlay')).toBeHidden();
   await app.products().header.cartLink.click();
   ```
+- **CI でだけ落ちる場合**: CI runner は画面遷移が遅く、ローディングスピナーがボタンを覆ったまま click が試行されやすい（ローカルでは再現しにくい）。リトライで通るからと放置せず、スピナーの `toBeHidden()` を待ってから click する:
+  ```ts
+  // 例: #7 checkout > 注文を確定する
+  await expect(page.getByTestId('loading-spinner')).toBeHidden();
+  await page.getByRole('button', { name: '注文を確定する' }).click();
+  ```
 
-**Source issues**: ナレッジ昇格時に `gh issue list --label P-locator-timeout` で原典を辿れる
+**Source issues**: #7（その他は `gh issue list --label P-locator-timeout` で原典を辿れる）
 
 ---
 
@@ -118,6 +124,10 @@ API 呼び出しが返ってくる前に assert が走っている。
   await cartResponse;
   await expect(app.cart().total).toHaveText('¥3,200');
   ```
+- 複数テストで同じ症状が出る場合は、個々のテストではなく **fixture / Page Object 側**（例: `app.cart()` の初期化やカート追加操作）に `waitForResponse` を入れる（scope: `pages/` / `utils/`）
+- 一時的に `waitForTimeout` で通ることを確認しても、それは原因の裏付けに過ぎない。**必ず外してから** 上記の修正を入れる
+
+**Source issues**: #9
 
 ---
 
